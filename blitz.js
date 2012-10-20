@@ -293,7 +293,9 @@ var blitz = (function (global) {
 						if (p) {
 							p = getPrototype(p);
 							if (blitzType.proto) {
-								p.__blitzType__ = i;
+								defineProperty(p, "__blitzType__", {
+									value : i
+								});
 							} else {
 								//a registered type which does not yet have a proto
 								newBlitzHelper(p, i);

@@ -127,11 +127,13 @@
 		var iframe = document.createElement("iframe");
 		document.head.appendChild(iframe);
 		var foreignArray = new iframe.contentWindow.Array(7, 1, 2);
+		iframe.parentNode.removeChild(iframe);
 		
 		equal(blitz([7, 1, 2]).sort().reverse().first().value, 7, "'first' method is added onto the array blitztype prototype and works");
 		equal(blitz(foreignArray).sort().reverse().first().value, 7, "'first' method works on an array from another context window");
 		equal(blitz([]).thisNotArray().value, true, "Verify the this value in the extension method is not an array");
 	});
+
 	function overloadAssertions(overload) {
 		equal(overload([]), "type1", "One type-bound argument");
 		equal(overload(3, ""), "types2", "Two type-bound arguments");
@@ -144,6 +146,7 @@
 		equal(overload(), "default", "The fallback function 'default' is called. Part 2");	
 		equal(overload(1, 2, 3, 4, 5), "5 args", "Five non-type-bound arguments");	
 	}
+
 	test("blitz.overload using constructors", 10, function () {
 		var overload = blitz.overload({
 			type1 : Array,
@@ -215,5 +218,68 @@
 		ok(Array.isArray(blitz(args).value), "An Arguments object is intercepted and transformed into an Array");
 		ok(Array.isArray(blitz(htmlCollection).value), "An HTMLCollection object is intercepted and transformed into an Array");
 		ok(Array.isArray(blitz(nodeList).value), "A NodeList object is intercepted and transformed into an Array");
+	});
+
+	test("'__blitzType__' property on prototypes in non-configurable", 9, function () {
+		if (!"__blitzType__" in new String) {
+			blitz("");
+		}
+		if (!"__blitzType__" in new Number) {
+			blitz(3);
+		}
+		
+		//Get an array from another window
+		var iframe = document.createElement("iframe");
+		document.head.appendChild(iframe);
+		var foreignArray = new iframe.contentWindow.Array(7, 1, 2);
+		iframe.parentNode.removeChild(iframe);
+		blitz(foreignArray);
+		
+		var foreignArrayProto = blitz.getPrototype(foreignArray),
+			stringProto = blitz.getPrototype(""),
+			numProto = blitz.getPrototype(7),
+			foreignArrayBlitzType = foreignArrayProto.__blitzType__,
+			stringBlitzType = stringProto.__blitzType__,
+			numBlitzType = numProto.__blitzType__;
+			
+		foreignArrayProto.__blitzType__ = "";
+		stringProto.__blitzType__ = "";
+		numProto.__blitzType__ = "";
+		
+		//console.log(foreignArrayProto.__blitzType__, foreignArrayBlitzType);
+		
+		strictEqual(foreignArrayProto.__blitzType__, foreignArrayBlitzType, "The '__blitzType' property cannot be changed through assignment. Part 1");		
+		strictEqual(stringProto.__blitzType__, stringBlitzType, "The '__blitzType' property cannot be changed through assignment. Part 2");
+		strictEqual(numProto.__blitzType__, numBlitzType, "The '__blitzType' property cannot be changed through assignment. Part 3");
+		
+		delete foreignArrayProto.__blitzType__;
+		delete stringProto.__blitzType__;
+		delete numProto.__blitzType__;
+		
+		strictEqual(foreignArrayProto.__blitzType__, foreignArrayBlitzType, "The '__blitzType' property cannot be deleted. Part 1");		
+		strictEqual(stringProto.__blitzType__, stringBlitzType, "The '__blitzType' property cannot be deleted. Part 2");
+		strictEqual(numProto.__blitzType__, numBlitzType, "The '__blitzType' property cannot be deleted. Part 3");
+
+		try {
+			Object.defineProperty(foreignArrayProto, "__blitzType__", {
+				value : ""
+			});
+		} catch (e) {}
+		
+		try {
+			Object.defineProperty(stringProto, "__blitzType__", {
+				value : ""
+			});
+		} catch (e) {}
+		
+		try {
+			Object.defineProperty(numProto, "__blitzType__", {
+				value : ""
+			});
+		} catch (e) {}
+		
+		strictEqual(foreignArrayProto.__blitzType__, foreignArrayBlitzType, "The '__blitzType' property cannot be changed with 'Object.defineProperty'. Part 1");
+		strictEqual(stringProto.__blitzType__, stringBlitzType, "The '__blitzType' property cannot be changed with 'Object.defineProperty'. Part 2");
+		strictEqual(numProto.__blitzType__, numBlitzType, "The '__blitzType' property cannot be changed with 'Object.defineProperty'. Part 3");
 	});
 }());
