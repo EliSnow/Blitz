@@ -1,0 +1,14 @@
+{
+	"name" : "Blitz",
+	"version" : "0.2.0",
+	"keywords" : ["prototype", "extend", "function overloading"],
+	"description" : "Framework to work with objects and prototypes--extend native prototypes, function overloading, cross-global context type recognition",
+	"author" : "Eli Snow",
+	"devDependencies" : {
+		"mime" : "1"
+	},
+	"repository" : { 
+		"type" : "git",
+		"url" : "https://github.com/EliSnow/Blitz.git"
+	}
+}

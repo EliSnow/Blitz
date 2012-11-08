@@ -7,7 +7,7 @@ objects and prototypes. Blitz offers:
 
 *	A safe way to extend native prototypes
 *	Function overloading based on the type and/or number of arguments
-*	Type recognition across global contexts
+*	Native type recognition across global contexts
 
 ##Compatibility
 
@@ -17,6 +17,7 @@ browsers/environments have specifically been tested:
 *	Internet Explorer 9
 *	Firefox
 *	Chrome
+*	Opera
 
 ##The Docs
 <a id="basics"></a>
@@ -240,39 +241,6 @@ var overload = blitz.overload({
 });
 ```
 
-<a id="register"></a>
-###Cross-global Type Recognition
-
-Blitz has the ability to recognize object types across global contexts. The 
-`blitz.registerType` method is used for this purpose. `blitz.registerType` takes
-one argument, a function that is called when Blitz encounters objects from
-another global context. That function receives one argument, a global context,
-and should return an instance or constructor for the desired type. If it is not
-possible to return an instance or constructor for the matching type the function
-should return either `null` or `undefined`. `blitz.registerType` only works if
-the desired type can be accessed through the global object.
-
-####Example 1
-
-Register the `Array` type so Arrays can be recognized across global contexts:  
-```js
-blitz.registerType(function (global) {  
-	return global.Array;  
-});
-```
-
-####Example 2
-
-Register the `Arguments` type so Arguments can be recognized across global
-contexts:  
-```js
-blitz.registerType(function (global) {  
-	//create a function in the global context which returns its Arguments  
-	//object  
-	return new global.Function("return arguments")();  
-});
-```
-
 ##All Blitz methods
 
 ###`blitz`
@@ -366,7 +334,3 @@ blitz.isFunction(document.getElementById);
 ###`blitz.overload`
 
 See the [Function Overloading](#overload) section.
-
-###`blitz.registerType`
-
-See the [Cross-global Type Recognition](#register) section.

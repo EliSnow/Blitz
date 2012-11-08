@@ -3,7 +3,8 @@ var blitz = (function (global) {
 	"use strict";
 	
 	function blitz (o) {
-		var blitzType = blitzHelper(o);
+		var blitzReturn,
+			blitzType = blitzHelper(o);
 		if (blitzType && blitzType.intFn) {
 			o = blitzType.intFn.apply(null, arguments);
 			blitzType = blitzHelper(o);
@@ -12,39 +13,35 @@ var blitz = (function (global) {
 			return o;
 		}
 		//return a new blitzType object
-		return create(blitzType.proto, {
-			value : {
-				value : o
-			},
-			__blitzType__ : {
-				value : -1
-			}
+		blitzReturn = create(blitzType.proto);
+		defineProperty(blitzReturn, blitzKey, {
+			value : -1
 		});
+		defineProperty(blitzReturn, "value", {
+			value : o
+		});
+		return blitzReturn;
 	}
 	
 	function blitzHelper (o) {
-		if (o == void 0 || o.__blitzType__ == -1) {
-			return o;
-		}
-		newBlitz(getPrototypeOf(o));
-		return blitzTypes[o.__blitzType__];	
+		return o == void 0 || o[blitzKey] == -1
+			? o
+			: blitzTypes[newBlitz(getPrototypeOf(o), o, 1)];
 	}
 	
 	function Blitz () {}
-	
-	var blitzTypes = [],
+	var iframe,
+		nativeType = /(?:\s*function (\w+)\(\) \{\s+\[native code\]\s+\}\s*)|(?:\[object (\w+)\])/,
+		blitzTypes = [],
+		blitzKey = "blitz" + Date.now(),	
 		//Prototypes
 		objectProto = Object.prototype,
 		//Object methods
 		create = Object.create,
 		defineProperty = Object.defineProperty,
+		getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor,
 		getOwnPropertyNames = Object.getOwnPropertyNames,
 		isConstructor = blitz.isConstructor = function (o) {
-			//We cannot simply check if `o` is a function because some
-			//constructors like `Element` are not callable functions
-			//Firefox reports NodeList and HTMLCollection instances as valid
-			//`instanceof` constructors and Chrome and IE report isNaN, so we must
-			//also check for the prototye property
 			try {
 				return 0 instanceof o || !!o.prototype;
 			} catch (e) {
@@ -54,52 +51,23 @@ var blitz = (function (global) {
 		isFunction = blitz.isFunction =  function (o) {
 			return typeof o == "function";
 		},
-		//Gets the prototype of an object. The difference between this method
-		//and `Object.getPrototypeOf` is when a constructor is provided it will
-		//return the prototype for the constructor type rather than the
-		//constructor's actual prototype, also works with primitives
 		getPrototype = blitz.getPrototype = function (o) {
 			return isConstructor(o)
 					? o.prototype
 					: getPrototypeOf(o);
 		};
+
+	if (global.document) {
+		iframe = document.createElement("iframe");
+		document.head.appendChild(iframe);
+	}
 	
 	function getPrototypeOf(o) {
 		return o == void 0
 			? undefined
 			: Object.getPrototypeOf(new Object(o));
 	}
-
-	//Creates an overloaded function which redirects to another function based
-	//upon the number or types of arguments. It takes an object in the following
-	//format:
-	//	{
-	//		4 : function () {
-	//			//function called when 4 arguments are provided
-	//		},
-	//		types1 : [HTMLBodyElement, String],
-	//		fn1 : function () {
-	//			//function called when an HTMLBodyElement and String are passed
-	//			//in as argumnts
-	//		},
-	//		type2 : Array,
-	//		fn2 : function () {
-	//			//function called when an array is passed in as an argument
-	//		},
-	//		"default" : function () {
-	//			//function to be called as a default if none of the others match
-	//		}
-	//	}
-	//For functions to be called based on the number of arguments the property
-	//is an integer with the value being the function to call. Functions to be
-	//called based on the type of the arguments require two properties, one for
-	//the argument types and one for the function. The argument types can be a
-	//single value or an array of values. The values can be either constructors
-	//or object instances. The names of the properties for type bound functions
-	//must be "type[s]1", "type[s]2", ... , "type[s]N" with the associated functions
-	//"fn1", "fn2", ... , "FnN". A default function can also be
-	//provided as a fall back. Remember to surround "default" in quotes as it is
-	//a reserved keyword and may cause problems if not quoted.
+	
 	blitz.overload = function (args) {
 		var argTypes, typesMap, fn, l, propNames, containsUndefined, undefinedCount,
 			i = 1,
@@ -116,9 +84,7 @@ var blitz = (function (global) {
 						}
 						return type;
 					}
-					var proto = getPrototype(type);
-					newBlitz(proto);
-					return blitzTypes[proto.__blitzType__].proto;	
+					return blitzTypes[newBlitz(getPrototype(type), type)].proto;	
 				});
 				if (containsUndefined) {
 					undefinedCount++;
@@ -138,28 +104,29 @@ var blitz = (function (global) {
 		}
 		return (function (fnMap) {
 			return function () {
-				var fn, j, k, every, match, arg, argTypes, typeGroup, type,
+				var fn, j, k, every, match, arg, argTypes, typeGroup, type, fns, blitzType,
 					args = [],
-					fns = fn,
 					i = 0,
 					l = arguments.length;
 				for (; i < l; i++) {
-					args.push(blitz(arguments[i]));
+					blitzType = blitzHelper(arguments[i]);
+					args.push(blitzType && blitzType.proto);
 				}
 				fn = fnMap[l];
 				if (Array.isArray(fn)) {
-					for (fns = fn, i = fn = 0; (argTypes = fns[i]) && !fn; i++) {
+					for (fns = fn, i = fn = 0; (argTypes = fns[i]); i++) {
 						for (j = 0, every = 1; (typeGroup = argTypes[j]) && every; j++) {
 							for (match = k = 0, l = typeGroup.length, arg = args[j]; k < l && !match; k++) {
 								type = typeGroup[k];
-								match = type == void 0
+								match = type == void 0 || arg == void 0
 									? type === arg
-									: objectProto.isPrototypeOf.call(type, arg);
+									: objectProto.isPrototypeOf.call(arg, type) || arg === type;
 							}
 							every = match;
 						}
 						if (every) {
 							fn = argTypes.fn;
+							break;
 						}
 					}
 				}
@@ -167,33 +134,7 @@ var blitz = (function (global) {
 			};
 		}(fnMap));
 	};
-	
-	//Adds methods to a Blitz's prototype. Takes an object in the form:
-	//	{
-	//		types : object_instance_or_constructor,
-	//		ext : {
-	//			methodName1 : function () {
-	//				//do stuff
-	//			},
-	//			methodName2 : function () {
-	//				//do stuff
-	//			},
-	//			property : "value"
-	//		},
-	//		props : {
-	//			property : {
-	//				get : function () {
-	//					//return some value
-	//				},
-	//				set : function (newValue) {
-	//					//set some value
-	//				}
-	//			}
-	//		}
-	//	}
-	//Properties within `ext` are added directly to the prototype, whereas the
-	//`props` object will be added to the prototype using
-	//`Object.defineProperties`
+
 	blitz.extend = function (args) {
 		var types = args.types || [args.type],
 			props = args.props || {},
@@ -202,10 +143,7 @@ var blitz = (function (global) {
 				? getOwnPropertyNames(ext)
 				: [];
 		types.forEach(function (type) {
-			var blitzProto,
-				proto = getPrototype(type);
-			newBlitz(proto);
-			blitzProto = blitzTypes[proto.__blitzType__].proto;
+			var blitzProto = blitzTypes[newBlitz(getPrototype(type), type)].proto;
 			keys.forEach(function (key) {
 				var value = ext[key];
 				defineProperty(blitzProto, key, {
@@ -225,104 +163,96 @@ var blitz = (function (global) {
 		});
 	};
 	
-	//Adds a transformer to the given type(s). A transformer will, when `blitz`
-	//is called with a particular type of object, change the passed in object
-	//into another type of object. This can be useful, for example, in
-	//automatically transforming array like objects into arrays. The format for
-	//the paramter object is as follows:
-	//	{
-	//		types : [types_here],
-	//		transformer : function (o) {
-	//			//return a new object type
-	//		}
-	//	}
 	blitz.intercept = function (args) {
 		var types = args.types || [args.type];
 		types.forEach(function (type) {
-			var proto = getPrototype(type);
-			newBlitz(proto);
-			blitzTypes[proto.__blitzType__].intFn = args.fn;			
+			blitzTypes[newBlitz(getPrototype(type), type)].intFn = args.fn;			
 		});
 	};
 	
-	//Checks if a prototype has its own `__blitzType__` property
-	function hasNoBlitz (proto) {
-		return !objectProto.hasOwnProperty.call(proto, "__blitzType__");
-	}
-	
-	//Allows cross-global-context recognition of types. Takes a function which
-	//will be passed a global object. Using that global object the function
-	//should return an instance or constructor. For example, so the `Array` type
-	//can be recognized across global contexts we may use the following
-	//function:
-	//	function (global) {
-	//		return global.Array;
-	//	}
-	blitz.registerType = function (fn) {
-		var proto,
-			o = fn(global);
-		if (o != void 0) {
-			proto = getPrototype(o);
-			newBlitzHelper(proto);
-			//associate the fn with the blitzType
-			blitzTypes[proto.__blitzType__].fn = fn;
-		} else {
-			blitzTypes.push({ fn: fn });
+	function newBlitz (proto, type, forceInstance) {
+		var blitzValue = getBlitzValue(proto);
+		if (blitzValue === undefined) {
+			var i, iProto,
+				isObj = !getPrototypeOf(proto),
+				id = (forceInstance || !isConstructor(type)
+					? objectProto.toString.call(type)
+					: Function.prototype.toString.call(type)).replace(nativeType, "$1$2");
+			if (id && iframe && !blitzTypes[id]) {
+				iProto = iframe.contentWindow[id];
+				if (isConstructor(iProto)) {
+					iProto = iProto.prototype;
+					blitzValue = newBlitzHelper(iProto);
+					//add synonym
+					blitzTypes[id] = blitzTypes[blitzValue];
+				}
+			}
+			if (id && (id != "Object" || isObj) && blitzTypes[id]) {
+				i = blitzValue = blitzTypes[id].proto.__i__;
+				while (proto && getBlitzValue(proto) === undefined) {
+					setBlitzValue(proto, i);
+					proto = getPrototypeOf(proto);
+					i = getPrototypeOf(blitzTypes[i].proto).__i__;
+				}
+			} else {
+				if (isObj) {
+					blitzValue = 0;
+					setBlitzValue(proto, blitzValue);
+				} else {
+					blitzValue = newBlitzHelper(proto);
+					if (id && !blitzTypes[id]) {
+						//add synonym
+						blitzTypes[id] = blitzTypes[blitzValue];
+					}
+				}
+			}
 		}
-	};
-	
-	//Takes a prototype and registers a new Blitz. If the prototype is from
-	//another global context it will check if that prototype maps to a
-	//preexisting Blitz
-	function newBlitz (proto) {
-		var fnConstructor, globalContext;
-		//test if proto is a constructor
-		if (hasNoBlitz(proto)) {
-			//get the global Function
-			fnConstructor = proto.constructor;
-			while (fnConstructor != fnConstructor.constructor) {
-				fnConstructor = fnConstructor.constructor;
-			}
-			//is the new type from another global context?
-			if (fnConstructor != Function) {
-				globalContext = fnConstructor("return self")();
-				//run all of the registered fn types for the global context
-				blitzTypes.forEach(function (blitzType, i) {
-					if (blitzType.fn) {
-						var p = blitzType.fn(globalContext);
-						if (p) {
-							p = getPrototype(p);
-							if (blitzType.proto) {
-								defineProperty(p, "__blitzType__", {
-									value : i
-								});
-							} else {
-								//a registered type which does not yet have a proto
-								newBlitzHelper(p, i);
-							}
-						}
-					}					
-				});
-			}
-			//register the type
-			newBlitzHelper(proto);
+		return blitzValue;
+	}
+		
+	function getBlitzValue (proto) {
+		var desc = getOwnPropertyDescriptor(proto, "constructor"),
+			get = desc && desc.get;
+		if (get && objectProto.hasOwnProperty.call(get, blitzKey)) {
+			return get[blitzKey];
 		}
 	}
 	
+	function setBlitzValue (proto, i) {
+		var con = proto.constructor,
+			propDesc = getOwnPropertyDescriptor(proto, "constructor"),
+			hasGet = propDesc && objectProto.hasOwnProperty.call(propDesc, "get"),
+			get = hasGet && propDesc.get
+				? propDesc.get
+				:function () {
+					return con;
+				},
+			set = hasGet
+				? propDesc.set
+				: function (newCon) {
+					con = newCon;
+				};
+		if (!propDesc || propDesc.configurable) {
+			defineProperty(proto, "constructor", {
+				get : get,
+				set : set
+			});
+		}
+		get[blitzKey] = i;
+	}
+
 	//Takes a prototype and creates a new Blitz for every non-registered
 	//prototype in the prototype chain
-	function newBlitzHelper (proto, existingBlitzIndex) {
-		if (hasNoBlitz(proto)) {
-			var blitzType, i,
+	function newBlitzHelper (proto) {
+		var blitzValue = getBlitzValue(proto);
+		if (blitzValue === undefined) {
+			var blitzType,
 				protoproto = getPrototypeOf(proto),
 				propNames = getOwnPropertyNames(proto);
 			//register the entire prototype chain
-			if (protoproto) {
-				newBlitzHelper(protoproto);
-				blitzType = create(blitzTypes[protoproto.__blitzType__].proto);
-			} else {
-				blitzType = new Blitz;
-			}
+			blitzType = protoproto
+				? create(blitzTypes[newBlitzHelper(protoproto)].proto)
+				: new Blitz;
 			//provide access to the object's properties on the Blitz
 			propNames.forEach(function (propName) {
 				defineProperty(blitzType, propName, {
@@ -331,10 +261,10 @@ var blitz = (function (global) {
 						var target = this.value,
 							prop = target[propName];
 						if (isFunction(prop)) {
-								var ret = prop.apply(target, arguments);
-								return ret === undefined
-									? this
-									: blitz(ret);							
+							var ret = prop.apply(target, arguments);
+							return ret === undefined
+								? this
+								: blitz(ret);							
 						} else {
 							if (arguments.length) {
 								try {
@@ -351,17 +281,16 @@ var blitz = (function (global) {
 			});
 			//add the new Blitz to the blitzTypes and
 			//record the blitzType index on the prototype
-			if (existingBlitzIndex != void 0) {
-				i = existingBlitzIndex;
-				blitzTypes[i].proto = blitzType;
-			} else {
-				i = blitzTypes.push({proto : blitzType}) - 1;
-			}
-			defineProperty(proto, "__blitzType__", {
-				value : i
+			blitzValue = blitzTypes.push({proto : blitzType}) - 1;
+			setBlitzValue(proto, blitzValue);
+			defineProperty(blitzType, "__i__", {
+				value : blitzValue
 			});
 		}
+		return blitzValue;
 	}
+	
+	newBlitz(Object.prototype, {}, 1);
 	
 	return blitz;
 })(this);

@@ -1,4 +1,17 @@
 (function () {
+	//reload the qunit script with every test run (makes the tests atomic)
+	QUnit.testStart(function () {
+		var script = document.querySelector("script[src^='../blitz.js']");
+		script.parentNode.removeChild(script);
+		script = document.createElement("script");
+		script.src = "../blitz.js?" + Date.now();
+		script.type = "text/javascript";
+		script.onload = function () {
+			start();
+		};
+		document.head.appendChild(script);
+		stop();
+	});
 	test("blitz.isConstructor", 38, function () {
 		equal(blitz.isConstructor(RegExp), true, "RegExp constructor");
 		equal(blitz.isConstructor(Array), true, "Array constructor");
@@ -40,12 +53,7 @@
 		equal(blitz.isConstructor(document.body.childNodes), false, "A NodeList object");
 	});
 
-	test("blitz basics", 8, function () {
-		ok(typeof blitz([]).slice == "function", "Array 'slice' method exists on the blitz object");
-		ok(typeof blitz([]).length == "function", "Array 'length' property exists on the blitz object as a method");
-		ok(typeof blitz("").substr == "function", "String 'substr' method exists on the blitz object");
-		ok(typeof blitz(/./).test == "function", "RegExp 'test' method exists on the blitz object");
-		ok(typeof blitz(/./).source == "function", "RegExp 'source' property exists on the blitz object as a method");
+	test("blitz basics", 3, function () {
 		var blitzObj = blitz("");
 		equal(blitzObj, blitz(blitzObj), "blitz should return the object passed in when a blitz object is passed in");
 		strictEqual(undefined, blitz(undefined), "blitz should return undefined when undefined is passed in");
@@ -75,17 +83,17 @@
 			a = new A,
 			b = new B;
 		
-		equal(blitz(array).length().value, array.length, "Array 'length'");
-		equal(blitz(str).substr(3).value, str.substr(3), "String 'substr'");
-		equal(blitz(reg).test("a").value, reg.test("a"), "RegExp 'test'");
-		equal(blitz(a).test().value, a.test(), "Custom type. Part 1");
-		equal(blitz(b).test().value, b.test(), "Custom type. Part 2");
-		equal(blitz(b).test2().value, b.test2(), "Custom type. Part 3");
-		equal(blitz(a).overrideMe().value, a.overrideMe, "Custom type. Part 3");
-		equal(blitz(b).overrideMe().value, b.overrideMe, "Custom type. Part 4");
+		ok(typeof blitz(array).length == "function" && blitz(array).length().value == array.length, "Array 'length'");
+		ok(typeof blitz(str).substr == "function" && blitz(str).substr(3).value == str.substr(3), "String 'substr'");
+		ok(typeof blitz(reg).test == "function" && blitz(reg).test("a").value == reg.test("a"), "RegExp 'test'");
+		ok(typeof blitz(a).test == "function" && blitz(a).test().value == a.test(), "Custom type. Part 1");
+		ok(typeof blitz(b).test == "function" && blitz(b).test().value == b.test(), "Custom type. Part 2");
+		ok(typeof blitz(b).test2 == "function" && blitz(b).test2().value == b.test2(), "Custom type. Part 3");
+		ok(typeof blitz(a).overrideMe == "function" && blitz(a).overrideMe().value == a.overrideMe, "Custom type. Part 4");
+		ok(typeof blitz(b).overrideMe == "function" && blitz(b).overrideMe().value == b.overrideMe, "Custom type. Part 5");
 	});			
 
-	test("blitz.extend and blitz.registerType", 5, function () {
+	test("blitz.extend", 5, function () {
 		//add a new extension method on to Arrays
 		blitz.extend({
 			type: Array,
@@ -99,39 +107,29 @@
 			}
 		});
 		
-		//register the Array type so Arrays from other global contexts will be recognized
-		blitz.registerType(function (global) {
-			return global.Array;
-		});
-		
-		try {
-			//a type register which returns undefined--should not throw an exception
-			blitz.registerType(function () {
-				return undefined;
-			});
-			ok(1, "Registered without incident");
-		} catch (e) {
-			ok(0, "Should have registered without incident");
-		}
-		
-		try {
-			//a type register which returns null--should not throw an exception
-			blitz.registerType(function () {
-				return null;
-			});
-			ok(1, "Registered without incident");
-		} catch (e) {
-			ok(0, "Should have registered without incident");
-		}
 		//Get an array from another window
 		var iframe = document.createElement("iframe");
 		document.head.appendChild(iframe);
-		var foreignArray = new iframe.contentWindow.Array(7, 1, 2);
+		var foreignArray = new iframe.contentWindow.Array(7, 1, 2),
+			foreignOption = iframe.contentWindow.document.createElement("option");
 		iframe.parentNode.removeChild(iframe);
 		
-		equal(blitz([7, 1, 2]).sort().reverse().first().value, 7, "'first' method is added onto the array blitztype prototype and works");
-		equal(blitz(foreignArray).sort().reverse().first().value, 7, "'first' method works on an array from another context window");
-		equal(blitz([]).thisNotArray().value, true, "Verify the this value in the extension method is not an array");
+		blitz.extend({
+			type : foreignOption,
+			ext : {
+				test : function () {
+					return 8;
+				}
+			}
+		});	
+
+		var option = document.createElement("option");
+		
+		ok(typeof blitz([7, 1, 2]).first == "function" && blitz([7, 1, 2]).first().value === 7, "'first' method is added onto the array blitztype prototype and works");
+		ok(typeof blitz(foreignArray).first == "function" && blitz(foreignArray).first().value === 7, "'first' method works on an array from another context window");
+		ok(typeof blitz([]).thisNotArray == "function" && blitz([]).thisNotArray().value === true, "Verify the this value in the extension method is not an array");
+		ok(typeof blitz(foreignOption).test == "function" && blitz(foreignOption).test().value === 8, "Verify the foreign 'option' has its 'test' method");
+		ok(typeof blitz(option).test == "function" && blitz(option).test().value == 8, "Verify that 'option' has its 'test' method");
 	});
 
 	function overloadAssertions(overload) {
@@ -203,83 +201,70 @@
 		overloadAssertions(overload);		
 	});
 	
-	test("blitz.intercept", 3, function () {
-		var args = arguments,
-			htmlCollection = document.getElementsByTagName("z"),
+	test("blitz.intercept", 2, function () {
+		var htmlCollection = document.getElementsByTagName("z"),
 			nodeList = document.body.childNodes;
 
 		blitz.intercept({
-			types : [args, htmlCollection, nodeList],
+			types : [htmlCollection, nodeList],
 			fn : function (o) {
 				return [].slice.call(o);
 			}
 		});
-		
-		ok(Array.isArray(blitz(args).value), "An Arguments object is intercepted and transformed into an Array");
+
 		ok(Array.isArray(blitz(htmlCollection).value), "An HTMLCollection object is intercepted and transformed into an Array");
 		ok(Array.isArray(blitz(nodeList).value), "A NodeList object is intercepted and transformed into an Array");
 	});
 
-	test("'__blitzType__' property on prototypes in non-configurable", 9, function () {
-		if (!"__blitzType__" in new String) {
-			blitz("");
-		}
-		if (!"__blitzType__" in new Number) {
-			blitz(3);
-		}
-		
-		//Get an array from another window
+	test("Cross-context", 6, function () {
 		var iframe = document.createElement("iframe");
 		document.head.appendChild(iframe);
-		var foreignArray = new iframe.contentWindow.Array(7, 1, 2);
+		var span = document.createElement("div"),
+			div = document.createElement("div"),
+			foreignDiv = iframe.contentWindow.document.createElement("div"),
+			foreignArg = iframe.contentWindow.Function("return arguments")(); //foreign arguments are used because they are of type Object but have a [[class]] of "Arguments"
 		iframe.parentNode.removeChild(iframe);
-		blitz(foreignArray);
 		
-		var foreignArrayProto = blitz.getPrototype(foreignArray),
-			stringProto = blitz.getPrototype(""),
-			numProto = blitz.getPrototype(7),
-			foreignArrayBlitzType = foreignArrayProto.__blitzType__,
-			stringBlitzType = stringProto.__blitzType__,
-			numBlitzType = numProto.__blitzType__;
-			
-		foreignArrayProto.__blitzType__ = "";
-		stringProto.__blitzType__ = "";
-		numProto.__blitzType__ = "";
+		//register the foreign object
+		blitz(foreignArg);
+		//register native object
+		blitz({});
 		
-		//console.log(foreignArrayProto.__blitzType__, foreignArrayBlitzType);
+		//extend the foreign object
+		blitz.extend({
+			type : foreignArg,
+			ext : {
+				objTest : function () {
+					return "obj";
+				}
+			}
+		});
 		
-		strictEqual(foreignArrayProto.__blitzType__, foreignArrayBlitzType, "The '__blitzType' property cannot be changed through assignment. Part 1");		
-		strictEqual(stringProto.__blitzType__, stringBlitzType, "The '__blitzType' property cannot be changed through assignment. Part 2");
-		strictEqual(numProto.__blitzType__, numBlitzType, "The '__blitzType' property cannot be changed through assignment. Part 3");
+		ok(typeof blitz(foreignArg).objTest == "function" && blitz(foreignArg).objTest().value == "obj", "Foreign object was extended");
+		ok(typeof blitz({}).objTest == "function" && blitz({}).objTest().value == "obj", "Local object was extended");
 		
-		delete foreignArrayProto.__blitzType__;
-		delete stringProto.__blitzType__;
-		delete numProto.__blitzType__;
+		blitz.extend({
+			type : foreignDiv,
+			ext : {
+				divTest : function () {
+					return "div";
+				}
+			}
+		});
 		
-		strictEqual(foreignArrayProto.__blitzType__, foreignArrayBlitzType, "The '__blitzType' property cannot be deleted. Part 1");		
-		strictEqual(stringProto.__blitzType__, stringBlitzType, "The '__blitzType' property cannot be deleted. Part 2");
-		strictEqual(numProto.__blitzType__, numBlitzType, "The '__blitzType' property cannot be deleted. Part 3");
-
-		try {
-			Object.defineProperty(foreignArrayProto, "__blitzType__", {
-				value : ""
-			});
-		} catch (e) {}
+		ok(typeof blitz(foreignDiv).divTest == "function" && blitz(foreignDiv).divTest().value == "div", "Foreign div was extended");
+		ok(typeof blitz(div).divTest == "function" && blitz(div).divTest().value == "div", "Local div was extended. Part 1");
 		
-		try {
-			Object.defineProperty(stringProto, "__blitzType__", {
-				value : ""
-			});
-		} catch (e) {}
+		blitz.extend({
+			type : HTMLElement,
+			ext : {
+				htmlTest : function () {
+					return "html";
+				}
+			}
+		});
 		
-		try {
-			Object.defineProperty(numProto, "__blitzType__", {
-				value : ""
-			});
-		} catch (e) {}
-		
-		strictEqual(foreignArrayProto.__blitzType__, foreignArrayBlitzType, "The '__blitzType' property cannot be changed with 'Object.defineProperty'. Part 1");
-		strictEqual(stringProto.__blitzType__, stringBlitzType, "The '__blitzType' property cannot be changed with 'Object.defineProperty'. Part 2");
-		strictEqual(numProto.__blitzType__, numBlitzType, "The '__blitzType' property cannot be changed with 'Object.defineProperty'. Part 3");
+		ok(typeof blitz(span).htmlTest == "function" && blitz(span).htmlTest().value == "html", "Local span was extended");
+		ok(typeof blitz(div).htmlTest == "function" && blitz(div).htmlTest().value == "html", "Local div was extended. Part 2");
 	});
 }());
