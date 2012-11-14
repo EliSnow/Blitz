@@ -14,7 +14,7 @@ objects and prototypes. Blitz offers:
 Blitz works with ECMAScript 5 compliant browsers/environments. The following
 browsers/environments have specifically been tested:
 
-*	Internet Explorer 9
+*	Internet Explorer 9/10
 *	Firefox
 *	Chrome
 *	Opera
