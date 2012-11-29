@@ -258,9 +258,9 @@ See the [Extending Native Prototypes](#extend) section.
 ###`blitz.getPrototype`
 
 This method returns the prototype for an object. The difference between this
-method and `Object.getPrototype` is this method can handle primitives (for
-`null` or `undefined`, `undefined` is returned) and in the case of a constructor
-the `prototype` property of the constructor is returned.
+method and `Object.getPrototypeOf` is this method promotes primitives (for
+`null` and `undefined`, `undefined` is returned) and in the case of a
+constructor the `prototype` property of the constructor is returned.
 
 ####Example
 
