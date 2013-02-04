@@ -241,7 +241,7 @@ var overload = blitz.overload({
 });
 ```
 
-##All Blitz methods
+##API
 
 ###`blitz`
 
