@@ -1,5 +1,5 @@
 /*jshint bitwise:true, strict:true, eqeqeq:false, eqnull:true, smarttabs:true, expr:true, immed:true, forin:true, noarg:true, nonew:true, laxbreak:true, undef:true, curly:true, latedef:true, loopfunc:true, newcap:true, browser:true, maxerr:50, quotmark:true, supernew:true, es5:true */
-var blitz = (function (global) {
+var blitz = (function (global, undef) {
 	"use strict";
 	
 	function blitz (o) {
@@ -24,7 +24,7 @@ var blitz = (function (global) {
 	}
 	
 	function blitzHelper (o) {
-		return o == void 0 || o[blitzKey] == -1
+		return o == undef || o[blitzKey] == -1
 			? o
 			: blitzTypes[newBlitz(getPrototypeOf(o), o, 1)];
 	}
@@ -63,8 +63,8 @@ var blitz = (function (global) {
 	}
 	
 	function getPrototypeOf(o) {
-		return o == void 0
-			? undefined
+		return o == undef
+			? undef
 			: Object.getPrototypeOf(new Object(o));
 	}
 	
@@ -78,8 +78,8 @@ var blitz = (function (global) {
 			argTypes.forEach(function (type) {
 				containsUndefined = undefinedCount = 0;
 				type = (Array.isArray(type) ? type : [type]).map(function (type) {
-					if (type == void 0) {
-						if (type === undefined) {
+					if (type == undef) {
+						if (type === undef) {
 							containsUndefined = 1;
 						}
 						return type;
@@ -118,7 +118,7 @@ var blitz = (function (global) {
 						for (j = 0, every = 1; (typeGroup = argTypes[j]) && every; j++) {
 							for (match = k = 0, l = typeGroup.length, arg = args[j]; k < l && !match; k++) {
 								type = typeGroup[k];
-								match = type == void 0 || arg == void 0
+								match = type == undef || arg == undef
 									? type === arg
 									: objectProto.isPrototypeOf.call(arg, type) || arg === type;
 							}
@@ -152,7 +152,7 @@ var blitz = (function (global) {
 					value : isFunction(value)
 						? function () {
 							var ret = value.apply(this, arguments);
-							return ret === undefined
+							return ret === undef
 								? this
 								: blitz(ret);
 						  }
@@ -172,7 +172,7 @@ var blitz = (function (global) {
 	
 	function newBlitz (proto, type, forceInstance) {
 		var blitzValue = getBlitzValue(proto);
-		if (blitzValue === undefined) {
+		if (blitzValue === undef) {
 			var i, iProto,
 				isObj = !getPrototypeOf(proto),
 				id = (forceInstance || !isConstructor(type)
@@ -189,21 +189,19 @@ var blitz = (function (global) {
 			}
 			if (id && (id != "Object" || isObj) && blitzTypes[id]) {
 				i = blitzValue = blitzTypes[id].proto.__i__;
-				while (proto && getBlitzValue(proto) === undefined) {
+				while (proto && getBlitzValue(proto) === undef) {
 					setBlitzValue(proto, i);
 					proto = getPrototypeOf(proto);
 					i = getPrototypeOf(blitzTypes[i].proto).__i__;
 				}
+			} else if (isObj) {
+				blitzValue = 0;
+				setBlitzValue(proto, blitzValue);
 			} else {
-				if (isObj) {
-					blitzValue = 0;
-					setBlitzValue(proto, blitzValue);
-				} else {
-					blitzValue = newBlitzHelper(proto);
-					if (id && !blitzTypes[id]) {
-						//add synonym
-						blitzTypes[id] = blitzTypes[blitzValue];
-					}
+				blitzValue = newBlitzHelper(proto);
+				if (id && !blitzTypes[id]) {
+					//add synonym
+					blitzTypes[id] = blitzTypes[blitzValue];
 				}
 			}
 		}
@@ -245,7 +243,7 @@ var blitz = (function (global) {
 	//prototype in the prototype chain
 	function newBlitzHelper (proto) {
 		var blitzValue = getBlitzValue(proto);
-		if (blitzValue === undefined) {
+		if (blitzValue === undef) {
 			var blitzType,
 				protoproto = getPrototypeOf(proto),
 				propNames = getOwnPropertyNames(proto);
@@ -262,20 +260,18 @@ var blitz = (function (global) {
 							prop = target[propName];
 						if (isFunction(prop)) {
 							var ret = prop.apply(target, arguments);
-							return ret === undefined
+							return ret === undef
 								? this
 								: blitz(ret);							
-						} else {
-							if (arguments.length) {
-								try {
-									target[propName] = arguments[0];
-								} catch (e) {
-									throw new TypeError(propName + " is read-only");
-								}
-								return this;
+						} else if (arguments.length){
+							try {
+								target[propName] = arguments[0];
+							} catch (e) {
+								throw new TypeError(propName + " is read-only");
 							}
-							return blitz(prop);						
+							return this;	
 						}
+						return blitz(prop);	
 					}
 				});
 			});
